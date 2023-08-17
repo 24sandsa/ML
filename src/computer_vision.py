@@ -9,7 +9,7 @@ from torchvision.transforms import ToTensor
 # Some utils for taking metrics
 from torchmetrics import ConfusionMatrix
 from mlxtend.plotting import plot_confusion_matrix
-from timeit import default_timer as timer 
+from timeit import default_timer as timer
 # Data science libs (they are friends not foes)
 import matplotlib.pyplot as plt
 import random
@@ -36,7 +36,7 @@ test_data = datasets.FashionMNIST(
 BATCH_SIZE = 32
 CLASS_NAMES = train_data.classes
 DEVICE = 'mps'
-epochs = 10
+epochs = 200
 
 
 train_dataloader = DataLoader(
@@ -52,6 +52,7 @@ test_dataloader = DataLoader(
     shuffle=False
 )
 
+
 class LinearNetwork(nn.Module):
     def __init__(self, input_features, hidden_units, output_features):
         super().__init__()
@@ -60,36 +61,44 @@ class LinearNetwork(nn.Module):
             nn.Linear(in_features=input_features, out_features=hidden_units),
             nn.Linear(in_features=hidden_units, out_features=output_features)
         )
+
     def forward(self, x):
         return self.layer_stack(x)
-    
+
+
 class ReLUNetwork(nn.Module):
     def __init__(self, input_features, hidden_units, output_features):
         super().__init__()
         self.layer_stack = nn.Sequential(
             nn.Flatten(),
-            nn.Linear(in_features=input_features, out_features= hidden_units),
+            nn.Linear(in_features=input_features, out_features=hidden_units),
             nn.ReLU(),
             nn.Linear(in_features=hidden_units, out_features=output_features),
             nn.ReLU()
         )
+
     def forward(self, x):
         return self.layer_stack(x)
 
+
 class ConvNeuralNetwork(nn.Module):
-    def __init__(self, input_shape:int, hidden_units:int, output_shape:int):
+    def __init__(self, input_shape: int, hidden_units: int, output_shape: int):
         super().__init__()
         self.block_1 = nn.Sequential(
-            nn.Conv2d(in_channels=input_shape, out_channels=hidden_units, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=input_shape, out_channels=hidden_units,
+                      kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=hidden_units, out_channels=hidden_units, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(in_channels=hidden_units, out_channels=hidden_units,
+                      kernel_size=3, stride=1, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)
         )
         self.block_2 = nn.Sequential(
-            nn.Conv2d(in_channels=hidden_units, out_channels=hidden_units, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=hidden_units,
+                      out_channels=hidden_units, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.Conv2d(in_channels=hidden_units, out_channels=hidden_units, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=hidden_units,
+                      out_channels=hidden_units, kernel_size=3, padding=1),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2)
         )
@@ -97,7 +106,7 @@ class ConvNeuralNetwork(nn.Module):
             nn.Flatten(),
             nn.Linear(in_features=hidden_units*7*7, out_features=output_shape)
         )
-    
+
     def forward(self, x):
         x = self.block_1(x)
         x = self.block_2(x)
@@ -110,10 +119,12 @@ def accuracy(y_true, y_pred):
     acc = (correct / len(y_pred)) * 100
     return acc
 
+
 def print_train_time(start: float, end: float, device: torch.device = None):
     total_time = end - start
     print(f"Train time on {device}: {total_time:.3f} seconds")
     return total_time
+
 
 def train_step(model: torch.nn.Module,
                data_loader: torch.utils.data.DataLoader,
@@ -134,7 +145,7 @@ def train_step(model: torch.nn.Module,
         loss = loss_fn(y_pred, y)
         train_loss += loss
         train_acc += accuracy_fn(y_true=y,
-                                 y_pred=y_pred.argmax(dim=1)) # Go from logits -> pred labels
+                                 y_pred=y_pred.argmax(dim=1))  # Go from logits -> pred labels
 
         # 3. Optimizer zero grad
         optimizer.zero_grad()
@@ -146,12 +157,14 @@ def train_step(model: torch.nn.Module,
         optimizer.step()
 
         if batch % 100 == 0:
-            print(f'Processed {batch * len(X)} of {len(data_loader.dataset)} samples')
+            print(
+                f'Processed {batch * len(X)} of {len(data_loader.dataset)} samples')
 
     # Calculate loss and accuracy per epoch and print out what's happening
     train_loss /= len(data_loader)
     train_acc /= len(data_loader)
     print(f"Train loss: {train_loss:.5f} | Train accuracy: {train_acc:.2f}%\n")
+
 
 def test_step(data_loader: torch.utils.data.DataLoader,
               model: torch.nn.Module,
@@ -160,30 +173,32 @@ def test_step(data_loader: torch.utils.data.DataLoader,
               device: torch.device = DEVICE):
     test_loss, test_acc = 0, 0
     model.to(device)
-    model.eval() # put model in eval mode
+    model.eval()  # put model in eval mode
     # Turn on inference context manager
-    with torch.inference_mode(): 
+    with torch.inference_mode():
         for X, y in data_loader:
             # Send data to GPU
             X, y = X.to(device), y.to(device)
-            
+
             # 1. Forward pass
             test_pred = model(X)
-            
+
             # 2. Calculate loss and accuracy
             test_loss += loss_fn(test_pred, y)
             test_acc += accuracy_fn(y_true=y,
-                y_pred=test_pred.argmax(dim=1) # Go from logits -> pred labels
-            )
-        
+                                    # Go from logits -> pred labels
+                                    y_pred=test_pred.argmax(dim=1)
+                                    )
+
         # Adjust metrics and print out
         test_loss /= len(data_loader)
         test_acc /= len(data_loader)
         print(f"Test loss: {test_loss:.5f} | Test accuracy: {test_acc:.2f}%\n")
 
-def eval_model(model: torch.nn.Module, 
-               data_loader: torch.utils.data.DataLoader, 
-               loss_fn: torch.nn.Module, 
+
+def eval_model(model: torch.nn.Module,
+               data_loader: torch.utils.data.DataLoader,
+               loss_fn: torch.nn.Module,
                accuracy_fn):
     loss, acc = 0, 0
     model.eval()
@@ -191,23 +206,24 @@ def eval_model(model: torch.nn.Module,
         for X, y in data_loader:
             # Make predictions with the model
             y_pred = model(X)
-            
+
             # Accumulate the loss and accuracy values per batch
             loss += loss_fn(y_pred, y)
-            acc += accuracy_fn(y_true=y, 
-                                y_pred=y_pred.argmax(dim=1)) # For accuracy, need the prediction labels (logits -> pred_prob -> pred_labels)
-        
+            acc += accuracy_fn(y_true=y,
+                               y_pred=y_pred.argmax(dim=1))  # For accuracy, need the prediction labels (logits -> pred_prob -> pred_labels)
+
         # Scale loss and acc to find the average loss/acc per batch
         loss /= len(data_loader)
         acc /= len(data_loader)
-        
-    return {"model_name": model.__class__.__name__, # only works when model was created with a class
+
+    return {"model_name": model.__class__.__name__,  # only works when model was created with a class
             "model_loss": loss.item(),
             "model_acc": acc}
 
-def make_predictions(model:nn.Module,
-                     data:list,
-                     device:torch.device = DEVICE):
+
+def make_predictions(model: nn.Module,
+                     data: list,
+                     device: torch.device = DEVICE):
     pred_probs = []
     model.to(device)
     model.eval()
